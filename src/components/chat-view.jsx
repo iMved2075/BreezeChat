@@ -3,12 +3,15 @@ import { cn } from "@/lib/utils.js";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.jsx";
 import { ScrollArea } from "@/components/ui/scroll-area.jsx";
 import { Button } from "@/components/ui/button.jsx";
-import { Paperclip, Download, Eye, EyeOff, ExternalLink, Upload, Save, Maximize2 } from "lucide-react";
+import { Paperclip, Download, Eye, EyeOff, ExternalLink, Upload, Save, Maximize2, Edit, Trash } from "lucide-react";
 import { extractFileIdFromUrl, getDirectLink } from "@/lib/googleDrive.js";
 import ChatHeader from "@/components/chat-header.jsx";
 import ChatInput from "@/components/chat-input.jsx";
 import SmartReplySuggestions from "@/components/smart-reply-suggestions.jsx";
 import ImageModal from "@/components/image-modal.jsx";
+import MessageContextMenu from "@/components/message-context-menu.jsx";
+import EditMessageDialog from "@/components/edit-message-dialog.jsx";
+import ChatContextMenu from "@/components/chat-context-menu.jsx";
 
 const FormattedTime = ({ timestamp }) => {
   const [formattedTime, setFormattedTime] = React.useState("");
@@ -26,11 +29,24 @@ const FormattedTime = ({ timestamp }) => {
   return <>{formattedTime}</>;
 };
 
-export default function ChatView({ chat, userId, onSendMessage, getChatDetails, users, onFileUpload, onOpenMediaUploader, onMarkAsRead }) {
+export default function ChatView({ 
+  chat, 
+  userId, 
+  onSendMessage, 
+  getChatDetails, 
+  users, 
+  onFileUpload, 
+  onOpenMediaUploader, 
+  onMarkAsRead,
+  onEditMessage,
+  onDeleteMessage,
+  onCloseChat 
+}) {
   const [messageText, setMessageText] = React.useState("");
   const scrollAreaRef = React.useRef(null);
   const fileInputRef = React.useRef(null);
   const [imageModal, setImageModal] = React.useState({ open: false, url: '', fileName: '' });
+  const [editDialog, setEditDialog] = React.useState({ open: false, message: null });
 
   // Function to download image
   const downloadImage = async (imageUrl, fileName) => {
@@ -98,6 +114,25 @@ export default function ChatView({ chat, userId, onSendMessage, getChatDetails, 
   // Function to close image modal
   const closeImageModal = () => {
     setImageModal({ open: false, url: '', fileName: '' });
+  };
+
+  // Handle edit message
+  const handleEditMessage = (messageId, currentContent) => {
+    const message = chat.messages.find(m => m.id === messageId);
+    if (message) {
+      setEditDialog({ open: true, message });
+    }
+  };
+
+  // Handle save edit
+  const handleSaveEdit = (messageId, newContent) => {
+    onEditMessage(messageId, newContent);
+    setEditDialog({ open: false, message: null });
+  };
+
+  // Handle delete message
+  const handleDeleteMessage = (messageId, deleteForEveryone) => {
+    onDeleteMessage(messageId, deleteForEveryone);
   };
 
   React.useEffect(() => {
@@ -299,14 +334,27 @@ export default function ChatView({ chat, userId, onSendMessage, getChatDetails, 
   }, [chat.messages, users]);
 
   return (
-    <div className="flex flex-col h-full w-full bg-card overflow-hidden">
-      <ChatHeader chat={chat} getChatDetails={getChatDetails} users={users} />
-      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+    <ChatContextMenu 
+      chat={chat} 
+      onCloseChat={onCloseChat}
+    >
+      <div className="flex flex-col h-full w-full bg-card overflow-hidden">
+        <ChatHeader chat={chat} getChatDetails={getChatDetails} users={users} />
+        <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
-          {chat.messages.map((message, index) => {
+          {chat.messages
+            .filter(message => {
+              // Filter out messages deleted for current user
+              if (message.deletedFor && message.deletedFor.includes(userId)) {
+                return false;
+              }
+              return true;
+            })
+            .map((message, index) => {
             const sender = users.find((user) => user.id === message.senderId);
             const isYou = message.senderId === userId;
             const showAvatar = !isYou && (index === 0 || chat.messages[index - 1].senderId !== message.senderId);
+            const isUnread = !isYou && (!message.readBy || !message.readBy.includes(userId));
 
             return (
               <div
@@ -326,40 +374,71 @@ export default function ChatView({ chat, userId, onSendMessage, getChatDetails, 
                   )}
                   </div>
                 )}
-                <div
-                  className={cn(
-                    "max-w-xs md:max-w-md lg:max-w-2xl rounded-lg px-3 py-2 text-sm",
-                    isYou
-                      ? "bg-accent text-accent-foreground"
-                      : "bg-secondary text-secondary-foreground"
-                  )}
+                <MessageContextMenu
+                  message={message}
+                  isYou={isYou}
+                  onEditMessage={handleEditMessage}
+                  onDeleteMessage={handleDeleteMessage}
                 >
-                  {!isYou && showAvatar && <p className="font-bold mb-1">{sender?.name}</p>}
-                  {message.mediaUrl ? renderMedia(message) : <p>{message.content}</p>}
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-muted-foreground/70">
-                      <FormattedTime timestamp={message.timestamp} />
-                    </p>
-                    {isYou && (
-                      <div className="flex items-center gap-1">
-                        {getReadStatus(message) > 0 ? (
-                          <Eye size={12} className="text-blue-500" />
-                        ) : (
-                          <EyeOff size={12} className="text-muted-foreground/50" />
-                        )}
-                        <span className="text-xs text-muted-foreground/70">
-                          {getReadStatus(message) > 0 ? 'Read' : 'Sent'}
-                        </span>
-                      </div>
+                  <div className="relative">
+                    {isUnread && !isYou && (
+                      <div className="absolute -left-2 top-2 h-2 w-2 bg-accent rounded-full animate-pulse"></div>
                     )}
+                    <div
+                      className={cn(
+                        "max-w-xs md:max-w-md lg:max-w-2xl rounded-lg px-3 py-2 text-sm relative group transition-all duration-200",
+                        isYou
+                          ? "bg-accent text-accent-foreground"
+                          : "bg-secondary text-secondary-foreground",
+                        message.isDeleted && "opacity-90 italic",
+                        isUnread && !isYou && "ring-2 ring-accent/30 bg-accent/5 shadow-lg"
+                      )}
+                    >
+                      {!isYou && showAvatar && <p className="font-bold mb-1 text-foreground/95">{sender?.name}</p>}
+                      {message.isDeleted ? (
+                        <p className="text-foreground/80">
+                          {message.deletedForEveryone ? "This message was deleted" : "You deleted this message"}
+                        </p>
+                      ) : (
+                        <>
+                          {message.mediaUrl ? renderMedia(message) : (
+                            <>
+                              <p>{message.content}</p>
+                              {message.editedAt && (
+                                <p className="text-xs text-foreground/90 mt-1">
+                                  (edited)
+                                </p>
+                              )}
+                            </>
+                          )}
+                        </>
+                      )}
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-xs text-foreground/90">
+                          <FormattedTime timestamp={message.timestamp} />
+                        </p>
+                        {isYou && !message.isDeleted && (
+                          <div className="flex items-center gap-1">
+                            {getReadStatus(message) > 0 ? (
+                              <Eye size={12} className="text-blue-500" />
+                            ) : (
+                              <EyeOff size={12} className="text-foreground/70" />
+                            )}
+                            <span className="text-xs text-foreground/90">
+                              {getReadStatus(message) > 0 ? 'Read' : 'Sent'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </MessageContextMenu>
               </div>
             );
           })}
         </div>
       </ScrollArea>
-      <div className="p-4 border-t border-border bg-background">
+      <div className="pt-4 px-4 pb-2 border-t border-border bg-background">
         <SmartReplySuggestions
           chatHistory={chatHistory}
           onSuggestionClick={handleSuggestionClick}
@@ -376,16 +455,6 @@ export default function ChatView({ chat, userId, onSendMessage, getChatDetails, 
             type="button"
             variant="outline"
             size="icon"
-            onClick={() => fileInputRef.current?.click()}
-            className="shrink-0"
-            title="Quick upload"
-          >
-            <Paperclip size={16} />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
             onClick={onOpenMediaUploader}
             className="shrink-0"
             title="Media uploader"
@@ -397,6 +466,7 @@ export default function ChatView({ chat, userId, onSendMessage, getChatDetails, 
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
               onSendMessage={handleSendMessage}
+              onAttachmentClick={() => fileInputRef.current?.click()}
             />
           </div>
         </div>
@@ -410,6 +480,15 @@ export default function ChatView({ chat, userId, onSendMessage, getChatDetails, 
         fileName={imageModal.fileName}
         onDownload={downloadImage}
       />
+      
+      {/* Edit Message Dialog */}
+      <EditMessageDialog
+        isOpen={editDialog.open}
+        onClose={() => setEditDialog({ open: false, message: null })}
+        message={editDialog.message}
+        onSaveEdit={handleSaveEdit}
+      />
     </div>
+    </ChatContextMenu>
   );
 }

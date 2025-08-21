@@ -22,6 +22,8 @@ import {
   updateDoc,
   doc,
   getDocs,
+  deleteDoc,
+  arrayRemove,
 } from "firebase/firestore";
 import {
   uploadFileToGoogleDrive,
@@ -74,42 +76,70 @@ export default function BreezeChatPage() {
   // Fetch chats and their messages from Firestore
   React.useEffect(() => {
     if (!user) return;
+
+    let unsubscribeMessages = {};
+
     // Listen for chat documents
     const q = query(collection(db, "chats"));
     const unsubscribeChats = onSnapshot(q, (querySnapshot) => {
       const chatsData = [];
+      
       querySnapshot.forEach((docSnap) => {
         const chatData = { id: docSnap.id, ...docSnap.data(), messages: [] };
+        chatsData.push(chatData);
+
+        // Clean up old message listener if it exists
+        if (unsubscribeMessages[docSnap.id]) {
+          unsubscribeMessages[docSnap.id]();
+        }
+
         // Listen for messages in each chat
         const messagesQuery = query(
           collection(db, `chats/${docSnap.id}/messages`),
           orderBy("timestamp", "asc")
         );
-        onSnapshot(messagesQuery, (messagesSnapshot) => {
+        
+        unsubscribeMessages[docSnap.id] = onSnapshot(messagesQuery, (messagesSnapshot) => {
           const messages = messagesSnapshot.docs.map((msgDoc) => ({
             id: msgDoc.id,
             ...msgDoc.data(),
           }));
+          
           setChats((prevChats) => {
-            const existingChatIndex = prevChats.findIndex(
-              (c) => c.id === docSnap.id
-            );
+            const existingChatIndex = prevChats.findIndex((c) => c.id === docSnap.id);
             if (existingChatIndex > -1) {
               const updatedChats = [...prevChats];
               updatedChats[existingChatIndex] = {
                 ...updatedChats[existingChatIndex],
                 messages,
+                lastMessage: messages[messages.length - 1] || null
               };
               return updatedChats;
+            } else {
+              // Add new chat with messages
+              return [...prevChats, { 
+                ...chatData, 
+                messages,
+                lastMessage: messages[messages.length - 1] || null
+              }];
             }
-            return prevChats;
           });
         });
-        chatsData.push(chatData);
       });
-      setChats(chatsData);
+      
+      // Initialize chats if this is the first load
+      setChats((prevChats) => {
+        if (prevChats.length === 0) {
+          return chatsData;
+        }
+        return prevChats;
+      });
     });
-    return () => unsubscribeChats();
+
+    return () => {
+      unsubscribeChats();
+      Object.values(unsubscribeMessages).forEach(unsub => unsub());
+    };
   }, [user]);
   // Get chat details for rendering
   const getChatDetails = (chat) => {
@@ -134,6 +164,63 @@ export default function BreezeChatPage() {
         user: null,
       };
     }
+  };
+
+  // Get latest message for a user
+  const getLatestMessageWithUser = (userProfile) => {
+    const dmChat = chats.find(
+      (chat) =>
+        chat.type === "dm" &&
+        chat.participants?.includes(YOU_USER_ID) &&
+        chat.participants?.includes(userProfile.uid)
+    );
+    
+    if (!dmChat || !dmChat.lastMessage) {
+      return "No messages yet";
+    }
+    
+    const lastMessage = dmChat.lastMessage;
+    const isYou = lastMessage.senderId === YOU_USER_ID;
+    const prefix = isYou ? "You: " : "";
+    
+    if (lastMessage.isDeleted) {
+      return lastMessage.deletedForEveryone ? "Message was deleted" : "You deleted this message";
+    }
+    
+    if (lastMessage.mediaUrl) {
+      const mediaType = lastMessage.mediaType || "file";
+      return `${prefix}📎 ${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}`;
+    }
+    
+    const content = lastMessage.content || "";
+    return `${prefix}${content.length > 30 ? content.substring(0, 30) + "..." : content}`;
+  };
+
+  // Get unread message count for a user
+  const getUnreadCountForUser = (userProfile) => {
+    const dmChat = chats.find(
+      (chat) =>
+        chat.type === "dm" &&
+        chat.participants?.includes(YOU_USER_ID) &&
+        chat.participants?.includes(userProfile.uid)
+    );
+    
+    if (!dmChat || !dmChat.messages) {
+      return 0;
+    }
+    
+    // Count messages that are not read by current user and not sent by current user
+    const unreadCount = dmChat.messages.filter(message => 
+      message.senderId !== YOU_USER_ID &&
+      (!message.readBy || !message.readBy.includes(YOU_USER_ID))
+    ).length;
+    
+    return unreadCount;
+  };
+
+  // Check if user has unread messages
+  const hasUnreadMessages = (userProfile) => {
+    return getUnreadCountForUser(userProfile) > 0;
   };
   // Send a message to the active chat
   const handleSendMessage = async (
@@ -170,6 +257,72 @@ export default function BreezeChatPage() {
         });
       }
     });
+  };
+
+  // Edit message function
+  const handleEditMessage = async (messageId, newContent) => {
+    if (!activeChat?.id || !YOU_USER_ID) return;
+    
+    try {
+      await updateDoc(doc(db, `chats/${activeChat.id}/messages`, messageId), {
+        content: newContent,
+        editedAt: serverTimestamp(),
+        isEdited: true,
+      });
+      
+      toast({
+        title: "Message Updated",
+        description: "Your message has been edited successfully.",
+      });
+    } catch (error) {
+      console.error('Error editing message:', error);
+      toast({
+        title: "Edit Failed",
+        description: "Could not edit the message. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Delete message function
+  const handleDeleteMessage = async (messageId, deleteForEveryone = false) => {
+    if (!activeChat?.id || !YOU_USER_ID) return;
+    
+    try {
+      if (deleteForEveryone) {
+        // Delete for everyone - mark as deleted but keep the document
+        await updateDoc(doc(db, `chats/${activeChat.id}/messages`, messageId), {
+          isDeleted: true,
+          deletedForEveryone: true,
+          deletedAt: serverTimestamp(),
+          deletedBy: YOU_USER_ID,
+        });
+      } else {
+        // Delete for me only - add user to deletedFor array
+        const messageDoc = doc(db, `chats/${activeChat.id}/messages`, messageId);
+        await updateDoc(messageDoc, {
+          deletedFor: arrayRemove(YOU_USER_ID) // Remove first in case it exists
+        });
+        await updateDoc(messageDoc, {
+          deletedFor: [...(await getDocs(query(collection(db, `chats/${activeChat.id}/messages`)))).docs
+            .find(doc => doc.id === messageId)?.data()?.deletedFor || [], YOU_USER_ID]
+        });
+      }
+      
+      toast({
+        title: "Message Deleted",
+        description: deleteForEveryone 
+          ? "Message deleted for everyone." 
+          : "Message deleted for you.",
+      });
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      toast({
+        title: "Delete Failed",
+        description: "Could not delete the message. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Handle file upload to Google Drive with fallback
@@ -343,23 +496,52 @@ export default function BreezeChatPage() {
         chat.participants?.includes(YOU_USER_ID) &&
         chat.participants?.includes(profile.uid)
     );
+    
     if (!dmChat) {
-      // Create a new DM chat in Firestore
-      const chatDoc = await addDoc(collection(db, "chats"), {
-        type: "dm",
-        participants: [YOU_USER_ID, profile.uid],
-        createdAt: serverTimestamp(),
-      });
-      dmChat = {
-        id: chatDoc.id,
-        type: "dm",
-        participants: [YOU_USER_ID, profile.uid],
-        messages: [],
-      };
-      setChats((prev) => [...prev, dmChat]);
+      try {
+        // Create a new DM chat in Firestore
+        const chatDoc = await addDoc(collection(db, "chats"), {
+          type: "dm",
+          participants: [YOU_USER_ID, profile.uid],
+          createdAt: serverTimestamp(),
+        });
+        
+        dmChat = {
+          id: chatDoc.id,
+          type: "dm",
+          participants: [YOU_USER_ID, profile.uid],
+          messages: [],
+          lastMessage: null,
+          createdAt: new Date()
+        };
+        
+        // Add the chat to state immediately for better UX
+        setChats((prev) => [...prev, dmChat]);
+      } catch (error) {
+        console.error("Error creating chat:", error);
+        toast({
+          title: "Error",
+          description: "Failed to start chat. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
+    
     setActiveChatId(dmChat.id);
     setSelectedProfile(null);
+  };
+
+  // Close chat function
+  const handleCloseChat = (chatId) => {
+    if (activeChatId === chatId) {
+      setActiveChatId(null);
+    }
+    // You can also add logic to remove the chat from recent chats or mark it as closed
+    toast({
+      title: "Chat Closed",
+      description: "The chat has been closed. You can reopen it by selecting the contact again.",
+    });
   };
 
   return (
@@ -387,27 +569,79 @@ export default function BreezeChatPage() {
             </h2>
           </div>
           <div className="px-2">
-            {/* List only other users (exclude current user) */}
+            {/* List only other users (exclude current user) - sorted by unread first, then by most recent message */}
             {users
               .filter((profile) => profile.uid !== YOU_USER_ID)
-              .map((profile) => (
+              .sort((a, b) => {
+                const aHasUnread = hasUnreadMessages(a);
+                const bHasUnread = hasUnreadMessages(b);
+                
+                // First sort by unread status
+                if (aHasUnread && !bHasUnread) return -1;
+                if (!aHasUnread && bHasUnread) return 1;
+                
+                // Then sort by most recent message
+                const aChatLastMessage = chats.find(chat => 
+                  chat.type === "dm" && 
+                  chat.participants?.includes(YOU_USER_ID) && 
+                  chat.participants?.includes(a.uid)
+                )?.lastMessage;
+                
+                const bChatLastMessage = chats.find(chat => 
+                  chat.type === "dm" && 
+                  chat.participants?.includes(YOU_USER_ID) && 
+                  chat.participants?.includes(b.uid)
+                )?.lastMessage;
+                
+                const aTime = aChatLastMessage?.timestamp?.toDate?.() || 0;
+                const bTime = bChatLastMessage?.timestamp?.toDate?.() || 0;
+                
+                return new Date(bTime) - new Date(aTime);
+              })
+              .map((profile) => {
+                const unreadCount = getUnreadCountForUser(profile);
+                const hasUnread = hasUnreadMessages(profile);
+                
+                return (
                 <div
                   key={profile.uid}
-                  className="flex items-center gap-3 p-3 hover:bg-muted/10 rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 mb-1"
+                  className={cn(
+                    "flex items-center gap-3 p-3 hover:bg-muted/10 rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 mb-1",
+                    hasUnread && "bg-accent/5 border border-accent/20"
+                  )}
                   onClick={() => handleStartChat(profile)}
                 >
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={profile.avatar} alt={profile.name} />
-                    <AvatarFallback>{profile.name?.charAt(0)}</AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={profile.avatar} alt={profile.name} />
+                      <AvatarFallback>{profile.name?.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    {hasUnread && (
+                      <div className="absolute -top-1 -right-1 h-5 w-5 bg-accent text-accent-foreground rounded-full flex items-center justify-center text-xs font-bold">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </div>
+                    )}
+                  </div>
                   <div className="flex-1 overflow-hidden">
-                    <p className="font-semibold truncate">{profile.name}</p>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {profile.email}
+                    <p className={cn(
+                      "font-semibold truncate",
+                      hasUnread ? "text-foreground" : "text-foreground/90"
+                    )}>
+                      {profile.name}
+                    </p>
+                    <p className={cn(
+                      "text-sm truncate",
+                      hasUnread ? "text-foreground font-medium" : "text-muted-foreground"
+                    )}>
+                      {getLatestMessageWithUser(profile)}
                     </p>
                   </div>
+                  {hasUnread && (
+                    <div className="h-2 w-2 bg-accent rounded-full flex-shrink-0"></div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
           </div>
         </div>
 
@@ -455,8 +689,8 @@ export default function BreezeChatPage() {
               <AvatarFallback>{selectedProfile.name?.charAt(0)}</AvatarFallback>
             </Avatar>
             <h2 className="text-2xl font-bold mb-2">{selectedProfile.name}</h2>
-            <p className="text-muted-foreground mb-2">
-              {selectedProfile.email}
+            <p className="text-muted-foreground mb-4">
+              {getLatestMessageWithUser(selectedProfile)}
             </p>
             {selectedProfile.uid !== YOU_USER_ID && (
               <Button onClick={() => handleStartChat(selectedProfile)}>
@@ -482,6 +716,9 @@ export default function BreezeChatPage() {
               onFileUpload={handleFileUpload}
               onOpenMediaUploader={() => openMediaUploader(activeChat.id)}
               onMarkAsRead={markMessagesAsRead}
+              onEditMessage={handleEditMessage}
+              onDeleteMessage={handleDeleteMessage}
+              onCloseChat={handleCloseChat}
             />
           </div>
         ) : (

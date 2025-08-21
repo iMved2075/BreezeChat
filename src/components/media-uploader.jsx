@@ -43,7 +43,7 @@ const ACCEPTED_FILE_TYPES = {
     types: ["audio/mp3", "audio/wav", "audio/ogg", "audio/aac", "audio/m4a"],
     maxSize: 20 * 1024 * 1024, // 20MB
     icon: Music,
-    color: "text-green-500"
+    color: "text-green-600"
   },
   document: {
     accept: ".pdf,.doc,.docx,.txt,.rtf",
@@ -121,7 +121,7 @@ const FilePreview = ({ file, onRemove, uploadProgress, uploadStatus }) => {
                 </span>
                 <div className="flex items-center gap-1">
                   {uploadStatus === 'success' && (
-                    <Check className="h-3 w-3 text-green-500" />
+                    <Check className="h-3 w-3 text-green-600" />
                   )}
                   {uploadStatus === 'error' && (
                     <AlertCircle className="h-3 w-3 text-red-500" />

@@ -13,23 +13,31 @@ A modern, real-time messaging application built with Next.js, Firebase, and AI-p
 - **Real-time Messaging**: Instant message delivery using Firebase Firestore
 - **User Authentication**: Secure authentication with Firebase Auth
 - **Direct Messages**: One-on-one conversations between users
+- **Message Management**: Edit and delete messages with "Delete for Me" and "Delete for Everyone" options
+- **Context Menus**: Right-click context menus for message actions
 - **Read Receipts**: Track message read status for better communication
 - **Online Status**: See when users are active or away
+- **Message Editing**: Edit sent messages with visual indicators
 
 ### 🎨 User Interface
 - **Modern Design**: Clean, intuitive interface with shadcn/ui components
-- **Dark/Light Theme**: Toggle between themes with system preference support
+- **Dark/Light Theme**: Toggle between themes with system preference support and darker green accents
 - **Responsive Layout**: Optimized for desktop and mobile devices
-- **Full Window Utilization**: Maximizes screen real estate for better experience
+- **Full Window Utilization**: Maximizes screen real estate with enhanced sidebar
 - **Smooth Animations**: Polished transitions and hover effects
+- **Enhanced Sidebar**: Expanded sidebar with user filtering and clickable contacts
+- **Compact Input Design**: Optimized message input with reduced padding for better space utilization
+- **Theme Toggle**: Conveniently placed theme switcher in the sidebar
 
 ### 📁 Media & File Sharing
 - **Multi-Format Support**: Images, videos, audio, and documents
 - **Google Drive Integration**: Secure cloud storage for large files
+- **Dual Upload Options**: Quick attachment via paperclip button and advanced media uploader
 - **Drag & Drop Upload**: Intuitive file sharing experience
 - **Media Uploader**: Advanced upload interface with progress tracking
-- **Image Viewer**: Full-screen image modal with download options
+- **Image Viewer**: Full-screen image modal with download options and action overlays
 - **Fallback System**: Base64 encoding fallback for small images
+- **Download Functionality**: Direct image download with fallback support
 
 ### 🤖 AI-Powered Features
 - **Smart Reply Suggestions**: AI-generated contextual response suggestions
@@ -38,6 +46,10 @@ A modern, real-time messaging application built with Next.js, Firebase, and AI-p
 
 ### 🛠 Advanced Features
 - **Real-time Synchronization**: Live updates across all connected devices
+- **Message Context Menus**: Right-click functionality for message management
+- **Edit Dialog System**: Intuitive message editing with keyboard shortcuts (Enter to save, Esc to cancel)
+- **Delete Confirmation**: Safety dialogs for delete operations
+- **Improved Text Visibility**: Enhanced text contrast across all themes
 - **Error Handling**: Robust error management with user-friendly notifications
 - **Performance Optimized**: Lazy loading and efficient state management
 - **Accessibility**: Screen reader support and keyboard navigation
@@ -111,6 +123,23 @@ npm start
 
 Visit [http://localhost:9002](http://localhost:9002) to see your application.
 
+## 🆕 Recent Updates
+
+### Version 2.1.0 - Enhanced Message Management
+- **✅ Message Editing**: Full edit functionality with visual indicators and keyboard shortcuts
+- **✅ Message Deletion**: "Delete for Me" and "Delete for Everyone" options with confirmation dialogs
+- **✅ Context Menus**: Right-click functionality for easy message management
+- **✅ Improved UI**: Enhanced text visibility and darker green accent colors
+- **✅ Sidebar Enhancement**: Expanded sidebar with theme toggle and better user interaction
+- **✅ Attachment Streamlining**: Removed duplicate attachment buttons for cleaner interface
+- **✅ Compact Design**: Reduced padding around input for better space utilization
+
+### Version 2.0.0 - Major UI Overhaul
+- **✅ Dark Mode**: Complete dark/light theme system with user preference persistence
+- **✅ Media Enhancement**: Advanced image modal with download capabilities
+- **✅ Security**: Environment variable protection for all sensitive data
+- **✅ Performance**: Optimized components and reduced bundle size
+
 ## 🏗 Project Structure
 
 ```
@@ -129,7 +158,9 @@ BreezeChat/
 │   │   ├── image-modal.jsx   # Image viewer modal
 │   │   ├── media-uploader.jsx # File upload interface
 │   │   ├── smart-reply-suggestions.jsx # AI suggestions
-│   │   └── theme-toggle.jsx  # Dark/light theme switcher
+│   │   ├── theme-toggle.jsx  # Dark/light theme switcher
+│   │   ├── message-context-menu.jsx # Right-click context menu
+│   │   └── edit-message-dialog.jsx # Message editing dialog
 │   ├── context/              # React contexts
 │   │   ├── auth-context.jsx  # Authentication state
 │   │   └── theme-context.jsx # Theme management

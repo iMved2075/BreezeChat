@@ -24,7 +24,7 @@ export default function ChatHeader({ chat, getChatDetails, users: allUsers }) {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {chat.type === 'dm' && user ? (
               <>
-                <Circle className={cn("h-2 w-2 fill-current", user.status === 'active' ? 'text-green-500' : 'text-gray-400')} />
+                <Circle className={cn("h-2 w-2 fill-current", user.status === 'active' ? 'text-green-600' : 'text-gray-400')} />
                 <span>{user.status === 'active' ? 'Active' : 'Away'}</span>
               </>
             ) : (
