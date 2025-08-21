@@ -29,6 +29,13 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.production
+.env.development
+.env.test
+
+# sensitive files
+client_secret*.json
+service-account*.json
 
 # vercel
 .vercel

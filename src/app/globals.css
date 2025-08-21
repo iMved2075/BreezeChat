@@ -73,13 +73,100 @@
     --sidebar-border: 220 20% 20%;
     --sidebar-ring: 155 49% 60%;
   }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    color: hsl(var(--foreground));
+    background: hsl(var(--background));
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Smooth theme transitions */
+  * {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Dark mode specific adjustments for images and media */
+  .dark img {
+    opacity: 0.9;
+  }
+
+  .dark img:hover {
+    opacity: 1;
+  }
+
+  /* Better scrollbar styling in dark mode */
+  .dark ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .dark ::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground));
+    border-radius: 4px;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--accent));
+  }
 }
 
 @layer base {
-  * {
-    @apply border-border;
+  html {
+    height: 100%;
   }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
   body {
-    @apply bg-background text-foreground;
+    color: hsl(var(--foreground));
+    background: hsl(var(--background));
+    font-feature-settings: "rlig" 1, "calt" 1;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #__next {
+    height: 100%;
+  }
+
+  /* Smooth theme transitions */
+  * {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Dark mode specific adjustments for images and media */
+  .dark img {
+    opacity: 0.9;
+  }
+
+  .dark img:hover {
+    opacity: 1;
+  }
+
+  /* Better scrollbar styling in dark mode */
+  .dark ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .dark ::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground));
+    border-radius: 4px;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--accent));
   }
 }
