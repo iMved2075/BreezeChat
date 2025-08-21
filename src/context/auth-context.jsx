@@ -1,0 +1,61 @@
+"use client";
+
+import * as React from "react";
+import { 
+  onAuthStateChanged,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut as firebaseSignOut
+} from "firebase/auth";
+import { auth } from "@/lib/firebase.js";
+import { useToast } from "@/hooks/use-toast.js";
+
+const AuthContext = React.createContext(null);
+
+export function useAuth() {
+  return React.useContext(AuthContext);
+}
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const { toast } = useToast();
+
+  React.useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const signInWithGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      toast({ title: "Success", description: "Signed in with Google successfully." });
+    } catch (error) {
+      console.error("Google Sign-In Error:", error);
+      toast({ variant: "destructive", title: "Error", description: "Could not sign in with Google." });
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      await firebaseSignOut(auth);
+      toast({ title: "Signed Out", description: "You have been signed out." });
+    } catch (error) {
+      console.error("Sign-Out Error:", error);
+      toast({ variant: "destructive", title: "Error", description: "Could not sign out." });
+    }
+  };
+
+  const value = {
+    user,
+    loading,
+    signInWithGoogle,
+    signOut,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
