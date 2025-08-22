@@ -131,6 +131,19 @@ npm start
 
 Visit [http://localhost:9002](http://localhost:9002) to see your application.
 
+### Mobile (React Native / Android)
+
+An Expo-based React Native starter lives in `mobile/`.
+
+```pwsh
+cd mobile
+npm install
+npm run android
+```
+
+- Requires Android Studio/SDK or a physical device.
+- You can run `npm start` inside `mobile` and press `a` to launch Android.
+
 ## 🆕 Recent Updates
 
 ### Version 2.2.0 - Voice & Video Calling
