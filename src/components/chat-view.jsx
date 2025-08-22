@@ -443,12 +443,12 @@ export default function ChatView({
           })}
         </div>
       </ScrollArea>
-      <div className="pt-4 px-4 pb-2 border-t border-border bg-background">
+      <div className="pt-3 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] border-t border-border bg-background">
         <SmartReplySuggestions
           chatHistory={chatHistory}
           onSuggestionClick={handleSuggestionClick}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <input
             type="file"
             ref={fileInputRef}
@@ -461,12 +461,12 @@ export default function ChatView({
             variant="outline"
             size="icon"
             onClick={onOpenMediaUploader}
-            className="shrink-0"
+            className="shrink-0 h-9 w-9"
             title="Media uploader"
           >
             <Upload size={16} />
           </Button>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <ChatInput
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}

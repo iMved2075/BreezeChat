@@ -12,10 +12,10 @@ export default function ChatInput({ value, onChange, onSendMessage, onAttachment
   };
 
   return (
-    <div className="relative">
+    <div className="relative w-full min-w-0 max-w-full">
       <Textarea
         placeholder="Type a message..."
-        className="pr-20 py-1.5 min-h-[44px] resize-none"
+        className="py-1.5 min-h-[44px] resize-none pr-24 md:pr-28"
         value={value}
         onChange={onChange}
         onKeyDown={handleKeyDown}
@@ -24,13 +24,13 @@ export default function ChatInput({ value, onChange, onSendMessage, onAttachment
         <Button 
           variant="ghost" 
           size="icon" 
-          className="rounded-full"
+          className="rounded-full h-9 w-9"
           onClick={onAttachmentClick}
         >
           <Paperclip size={20} />
           <span className="sr-only">Attach file</span>
         </Button>
-        <Button size="icon" className="rounded-full bg-accent hover:bg-accent/90" onClick={onSendMessage}>
+        <Button size="icon" className="rounded-full h-9 w-9 bg-accent hover:bg-accent/90" onClick={onSendMessage}>
           <Send size={20} />
           <span className="sr-only">Send message</span>
         </Button>

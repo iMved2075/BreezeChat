@@ -570,7 +570,7 @@ export default function BreezeChatPage() {
   };
 
   return (
-    <div className="flex h-screen w-screen bg-background text-foreground overflow-hidden flex-col md:flex-row">
+  <div className="flex h-screen w-screen bg-background text-foreground overflow-hidden flex-col md:flex-row min-w-0">
       {/* Mobile header */}
       <div className="md:hidden flex items-center justify-between p-3 border-b">
         <div className="flex items-center gap-2">
@@ -782,7 +782,7 @@ export default function BreezeChatPage() {
       </div>
 
       {/* Mobile Content Area: Contacts first, Chat after selection */}
-      <div className="md:hidden flex-1 h-full overflow-hidden">
+  <div className="md:hidden flex-1 h-full overflow-hidden min-w-0">
         {!activeChatId ? (
           <div className="flex flex-col h-full">
             {/* Mobile contacts with search */}
