@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { MessageSquare, Users, Circle, Wind, Bot, LogOut } from "lucide-react";
+import { MessageSquare, Users, Circle, Wind, Bot, LogOut, Menu, Plus, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils.js";
 import {
   Avatar,
@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/avatar.jsx";
 import ChatView from "@/components/chat-view.jsx";
 import MediaUploader from "@/components/media-uploader.jsx";
+import CallInterface from "@/components/call-interface.jsx";
+import CallNotification from "@/components/call-notification.jsx";
 import { ThemeToggle } from "@/components/theme-toggle.jsx";
 import { db } from "@/lib/firebase.js";
 import {
@@ -24,6 +26,7 @@ import {
   getDocs,
   deleteDoc,
   arrayRemove,
+  where,
 } from "firebase/firestore";
 import {
   uploadFileToGoogleDrive,
@@ -36,8 +39,11 @@ import {
 } from "@/lib/fileUtils.js";
 import { useToast } from "@/hooks/use-toast.js";
 import { useAuth } from "@/context/auth-context.jsx";
+import { useCall } from "@/context/call-context.jsx";
 import { useRouter } from "next/navigation.js";
 import { Button } from "@/components/ui/button.jsx";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet.jsx";
+import { Input } from "@/components/ui/input.jsx";
 
 const FormattedTime = ({ timestamp }) => {
   const [formattedTime, setFormattedTime] = React.useState("");
@@ -62,15 +68,29 @@ const FormattedTime = ({ timestamp }) => {
 // Dynamic user list from Firestore
 
 export default function BreezeChatPage() {
+  const __DEV__ = process.env.NODE_ENV !== 'production';
   const { user, loading, signOut, getAllUsers } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const callState = useCall();
   const [chats, setChats] = React.useState([]);
   const [activeChatId, setActiveChatId] = React.useState(null);
   const [users, setUsers] = React.useState([]);
   const [selectedProfile, setSelectedProfile] = React.useState(null);
   const [showMediaUploader, setShowMediaUploader] = React.useState(false);
   const [uploadChatId, setUploadChatId] = React.useState(null);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
+  const [mobileSearch, setMobileSearch] = React.useState("");
+  const mobileSearchRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (mobileSidebarOpen) {
+      // slight delay to ensure element is mounted
+      setTimeout(() => mobileSearchRef.current?.focus(), 100);
+    } else {
+      setMobileSearch("");
+    }
+  }, [mobileSidebarOpen]);
   const YOU_USER_ID = user?.uid;
 
   // Fetch chats and their messages from Firestore
@@ -79,9 +99,9 @@ export default function BreezeChatPage() {
 
     let unsubscribeMessages = {};
 
-    // Listen for chat documents
-    const q = query(collection(db, "chats"));
-    const unsubscribeChats = onSnapshot(q, (querySnapshot) => {
+  // Listen only to chats the user participates in (matches typical security rules)
+  const q = query(collection(db, "chats"), where('participants', 'array-contains', user.uid));
+  const unsubscribeChats = onSnapshot(q, (querySnapshot) => {
       const chatsData = [];
       
       querySnapshot.forEach((docSnap) => {
@@ -134,6 +154,11 @@ export default function BreezeChatPage() {
         }
         return prevChats;
       });
+    }, (err) => {
+      console.error('🔥 Chats snapshot error:', err);
+      if (err.code === 'permission-denied') {
+    if (__DEV__) console.warn('Permission denied: ensure Firestore rules allow reading chats where user is a participant.');
+      }
     });
 
     return () => {
@@ -356,10 +381,10 @@ export default function BreezeChatPage() {
       if (mediaType === "image" && file.size <= 2 * 1024 * 1024) {
         // 2MB for images
         try {
-          console.log("Using base64 fallback for small image");
+          if (__DEV__) console.log("Using base64 fallback for small image");
           fileUrl = await fileToBase64(file);
         } catch (fallbackError) {
-          console.warn(
+          if (__DEV__) console.warn(
             "Base64 fallback failed, trying Google Drive:",
             fallbackError.message
           );
@@ -369,7 +394,7 @@ export default function BreezeChatPage() {
       // If fallback didn't work or file is large, try Google Drive
       if (!fileUrl) {
         try {
-          console.log("Attempting Google Drive upload...");
+          if (__DEV__) console.log("Attempting Google Drive upload...");
           uploadToast.update({
             title: "Uploading to Google Drive...",
             description: `Processing ${file.name}`,
@@ -378,9 +403,9 @@ export default function BreezeChatPage() {
           await initializeGoogleDrive();
           const fileName = generateUniqueFileName(file.name);
           fileUrl = await uploadFileToGoogleDrive(file, fileName);
-          console.log("Google Drive upload successful");
+          if (__DEV__) console.log("Google Drive upload successful");
         } catch (driveError) {
-          console.warn("Google Drive upload failed:", driveError.message);
+          if (__DEV__) console.warn("Google Drive upload failed:", driveError.message);
 
           // Try fallback for images only if not already tried
           if (
@@ -389,7 +414,7 @@ export default function BreezeChatPage() {
             !fileUrl
           ) {
             try {
-              console.log("Falling back to base64 after Google Drive failure");
+              if (__DEV__) console.log("Falling back to base64 after Google Drive failure");
               uploadToast.update({
                 title: "Using fallback method...",
                 description: `Processing ${file.name}`,
@@ -545,9 +570,29 @@ export default function BreezeChatPage() {
   };
 
   return (
-    <div className="flex h-screen w-screen bg-background text-foreground overflow-hidden">
-      {/* Custom Sidebar */}
-      <div className="w-80 h-full border-r border-border/20 bg-sidebar flex flex-col">
+    <div className="flex h-screen w-screen bg-background text-foreground overflow-hidden flex-col md:flex-row">
+      {/* Mobile header */}
+      <div className="md:hidden flex items-center justify-between p-3 border-b">
+        <div className="flex items-center gap-2">
+          {activeChatId ? (
+            <Button variant="ghost" size="icon" onClick={() => setActiveChatId(null)} aria-label="Back to contacts">
+              <ArrowLeft size={20} />
+            </Button>
+          ) : (
+            <div className="p-2 rounded-lg bg-primary text-primary-foreground">
+              <Wind size={20} />
+            </div>
+          )}
+          <h1 className="text-lg font-bold font-headline">BreezeChat</h1>
+        </div>
+        {!activeChatId && (
+          <Button variant="ghost" size="icon" onClick={() => setMobileSidebarOpen(true)} aria-label="Open contacts">
+            <Menu size={20} />
+          </Button>
+        )}
+      </div>
+  {/* Custom Sidebar (desktop) */}
+  <div className="hidden md:flex w-80 h-full border-r border-border/20 bg-sidebar flex-col">
         {/* Sidebar Header */}
         <div className="p-4 border-b border-border/10">
           <div className="flex items-center gap-2 justify-between">
@@ -676,8 +721,8 @@ export default function BreezeChatPage() {
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 h-full overflow-hidden">
+  {/* Main Content Area (desktop) */}
+  <div className="hidden md:block flex-1 h-full overflow-hidden">
         {/* Profile view modal/panel */}
         {selectedProfile ? (
           <div className="flex flex-col items-center justify-center h-full w-full">
@@ -727,9 +772,119 @@ export default function BreezeChatPage() {
             <h2 className="text-2xl font-semibold text-muted-foreground">
               Welcome to BreezeChat
             </h2>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground mb-8">
               Select a conversation or user to start messaging.
             </p>
+            
+            {/* Select a user to start chatting or place a call */}
+          </div>
+        )}
+      </div>
+
+      {/* Mobile Content Area: Contacts first, Chat after selection */}
+      <div className="md:hidden flex-1 h-full overflow-hidden">
+        {!activeChatId ? (
+          <div className="flex flex-col h-full">
+            {/* Mobile contacts with search */}
+            <div className="p-3 border-b">
+              <Input
+                ref={mobileSearchRef}
+                value={mobileSearch}
+                onChange={(e) => setMobileSearch(e.target.value)}
+                placeholder="Search contacts"
+                className="h-9"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 py-2">
+              {users
+                .filter((profile) => profile.uid !== YOU_USER_ID)
+                .filter((profile) => {
+                  if (!mobileSearch) return true;
+                  const q = mobileSearch.toLowerCase();
+                  return (
+                    (profile.name || "").toLowerCase().includes(q) ||
+                    (profile.email || "").toLowerCase().includes(q)
+                  );
+                })
+                .sort((a, b) => {
+                  const aHasUnread = hasUnreadMessages(a);
+                  const bHasUnread = hasUnreadMessages(b);
+                  if (aHasUnread && !bHasUnread) return -1;
+                  if (!aHasUnread && bHasUnread) return 1;
+                  const aChatLastMessage = chats.find(chat => 
+                    chat.type === "dm" && 
+                    chat.participants?.includes(YOU_USER_ID) && 
+                    chat.participants?.includes(a.uid)
+                  )?.lastMessage;
+                  const bChatLastMessage = chats.find(chat => 
+                    chat.type === "dm" && 
+                    chat.participants?.includes(YOU_USER_ID) && 
+                    chat.participants?.includes(b.uid)
+                  )?.lastMessage;
+                  const aTime = aChatLastMessage?.timestamp?.toDate?.() || 0;
+                  const bTime = bChatLastMessage?.timestamp?.toDate?.() || 0;
+                  return new Date(bTime) - new Date(aTime);
+                })
+                .map((profile) => {
+                  const unreadCount = getUnreadCountForUser(profile);
+                  const hasUnread = hasUnreadMessages(profile);
+                  return (
+                    <div
+                      key={profile.uid}
+                      className={cn(
+                        "flex items-center gap-3 p-3 hover:bg-muted/10 rounded-lg cursor-pointer transition-all duration-200 mb-1",
+                        hasUnread && "bg-accent/5 border border-accent/20"
+                      )}
+                      onClick={async () => {
+                        await handleStartChat(profile);
+                      }}
+                    >
+                      <div className="relative">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={profile.avatar} alt={profile.name} />
+                          <AvatarFallback>{profile.name?.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        {hasUnread && (
+                          <div className="absolute -top-1 -right-1 h-5 w-5 bg-accent text-accent-foreground rounded-full flex items-center justify-center text-xs font-bold">
+                            {unreadCount > 9 ? "9+" : unreadCount}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        <p className={cn(
+                          "font-semibold truncate",
+                          hasUnread ? "text-foreground" : "text-foreground/90"
+                        )}>
+                          {profile.name}
+                        </p>
+                        <p className={cn(
+                          "text-sm truncate",
+                          hasUnread ? "text-foreground font-medium" : "text-muted-foreground"
+                        )}>
+                          {getLatestMessageWithUser(profile)}
+                        </p>
+                      </div>
+                      {hasUnread && <div className="h-2 w-2 bg-accent rounded-full flex-shrink-0"></div>}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col h-full w-full">
+            <ChatView
+              chat={activeChat}
+              userId={YOU_USER_ID}
+              onSendMessage={handleSendMessage}
+              getChatDetails={getChatDetails}
+              users={users}
+              onFileUpload={handleFileUpload}
+              onOpenMediaUploader={() => openMediaUploader(activeChat.id)}
+              onMarkAsRead={markMessagesAsRead}
+              onEditMessage={handleEditMessage}
+              onDeleteMessage={handleDeleteMessage}
+              onCloseChat={() => setActiveChatId(null)}
+            />
           </div>
         )}
       </div>
@@ -742,6 +897,189 @@ export default function BreezeChatPage() {
         maxFiles={10}
         allowMultiple={true}
       />
+
+  {/* Call Interface */}
+      <CallInterface
+        isOpen={callState.isInCall}
+        callType={callState.callType}
+        callStatus={callState.callStatus}
+        contact={callState.contact || callState.caller}
+        onEndCall={callState.endCall}
+        onToggleMute={callState.toggleMute}
+        onToggleVideo={callState.toggleVideo}
+        onToggleSpeaker={callState.toggleSpeaker}
+        onMinimize={callState.toggleMinimize}
+        duration={callState.duration}
+        isMuted={callState.isMuted}
+        isVideoOff={callState.isVideoOff}
+        isSpeakerOn={callState.isSpeakerOn}
+        isMinimized={callState.isMinimized}
+        localVideoRef={callState.localVideoRef}
+        remoteVideoRef={callState.remoteVideoRef}
+        isWebRTCSupported={callState.isWebRTCSupported}
+        ringRemaining={callState.ringRemaining}
+        isOutgoing={callState.isOutgoing}
+      />
+
+  {/* Hidden audio element for voice calls to ensure remote audio plays */}
+  <audio ref={callState.remoteAudioRef} autoPlay playsInline hidden />
+
+      {/* Call Notification for incoming calls */}
+  {/* Dev-only trace for CallNotification props removed for production */}
+  <CallNotification
+        isVisible={callState.hasIncomingCall}
+        callType={callState.callType}
+        caller={callState.caller}
+        ringRemaining={callState.ringRemaining}
+        onAccept={() => {
+          if (callState.acceptCall) callState.acceptCall();
+        }}
+        onDecline={() => {
+          if (callState.declineCall) callState.declineCall();
+        }}
+      />
+
+      {/* Mobile FAB: New Chat */}
+      <div className="md:hidden fixed bottom-20 right-4 z-40">
+        <Button
+          className="h-14 w-14 rounded-full shadow-lg"
+          onClick={() => setMobileSidebarOpen(true)}
+          aria-label="New chat"
+        >
+          <Plus size={24} />
+        </Button>
+      </div>
+
+      {/* Mini call pill when minimized (mobile) */}
+      {callState.isInCall && callState.isMinimized && (
+        <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+          <Button
+            className="rounded-full px-4 py-2 shadow-md bg-primary text-primary-foreground flex items-center gap-2"
+            onClick={callState.toggleMinimize}
+          >
+            <MessageSquare size={16} />
+            <span className="text-sm">Back to call</span>
+          </Button>
+        </div>
+      )}
+
+      {/* Mobile Contacts Sheet */}
+      <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+        <SheetContent side="left" className="p-0 w-[85%] sm:max-w-sm">
+          <div className="flex flex-col h-full">
+            {/* Header */}
+            <div className="p-4 border-b flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-primary text-primary-foreground">
+                <Wind size={20} />
+              </div>
+              <h2 className="text-lg font-semibold">Contacts</h2>
+            </div>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-3 border-b">
+                <Input
+                  ref={mobileSearchRef}
+                  value={mobileSearch}
+                  onChange={(e) => setMobileSearch(e.target.value)}
+                  placeholder="Search contacts"
+                  className="h-9"
+                />
+              </div>
+              <div className="px-2 py-2">
+                {users
+                  .filter((profile) => profile.uid !== YOU_USER_ID)
+                  .filter((profile) => {
+                    if (!mobileSearch) return true;
+                    const q = mobileSearch.toLowerCase();
+                    return (
+                      (profile.name || "").toLowerCase().includes(q) ||
+                      (profile.email || "").toLowerCase().includes(q)
+                    );
+                  })
+                  .sort((a, b) => {
+                    const aHasUnread = hasUnreadMessages(a);
+                    const bHasUnread = hasUnreadMessages(b);
+                    if (aHasUnread && !bHasUnread) return -1;
+                    if (!aHasUnread && bHasUnread) return 1;
+                    const aChatLastMessage = chats.find(chat => 
+                      chat.type === "dm" && 
+                      chat.participants?.includes(YOU_USER_ID) && 
+                      chat.participants?.includes(a.uid)
+                    )?.lastMessage;
+                    const bChatLastMessage = chats.find(chat => 
+                      chat.type === "dm" && 
+                      chat.participants?.includes(YOU_USER_ID) && 
+                      chat.participants?.includes(b.uid)
+                    )?.lastMessage;
+                    const aTime = aChatLastMessage?.timestamp?.toDate?.() || 0;
+                    const bTime = bChatLastMessage?.timestamp?.toDate?.() || 0;
+                    return new Date(bTime) - new Date(aTime);
+                  })
+                  .map((profile) => {
+                    const unreadCount = getUnreadCountForUser(profile);
+                    const hasUnread = hasUnreadMessages(profile);
+                    return (
+                      <div
+                        key={profile.uid}
+                        className={cn(
+                          "flex items-center gap-3 p-3 hover:bg-muted/10 rounded-lg cursor-pointer transition-all duration-200 mb-1",
+                          hasUnread && "bg-accent/5 border border-accent/20"
+                        )}
+                        onClick={async () => {
+                          await handleStartChat(profile);
+                          setMobileSidebarOpen(false);
+                        }}
+                      >
+                        <div className="relative">
+                          <Avatar className="h-9 w-9">
+                            <AvatarImage src={profile.avatar} alt={profile.name} />
+                            <AvatarFallback>{profile.name?.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          {hasUnread && (
+                            <div className="absolute -top-1 -right-1 h-5 w-5 bg-accent text-accent-foreground rounded-full flex items-center justify-center text-xs font-bold">
+                              {unreadCount > 9 ? "9+" : unreadCount}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                          <p className={cn(
+                            "font-semibold truncate",
+                            hasUnread ? "text-foreground" : "text-foreground/90"
+                          )}>
+                            {profile.name}
+                          </p>
+                          <p className={cn(
+                            "text-sm truncate",
+                            hasUnread ? "text-foreground font-medium" : "text-muted-foreground"
+                          )}>
+                            {getLatestMessageWithUser(profile)}
+                          </p>
+                        </div>
+                        {hasUnread && <div className="h-2 w-2 bg-accent rounded-full flex-shrink-0"></div>}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+            {/* Footer */}
+            <div className="p-4 border-t">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-9 w-9">
+                  <AvatarImage src={currentUser.avatar} alt={currentUser.name} />
+                  <AvatarFallback>{currentUser.name?.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 overflow-hidden">
+                  <p className="font-semibold truncate text-sm">{currentUser.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">Welcome back!</p>
+                </div>
+                <Button variant="ghost" size="icon" className="rounded-full" onClick={signOut}>
+                  <LogOut size={18} />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

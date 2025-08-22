@@ -3,11 +3,16 @@ import { cn } from "@/lib/utils.js";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.jsx";
 import { ScrollArea } from "@/components/ui/scroll-area.jsx";
 import { Button } from "@/components/ui/button.jsx";
-import { Paperclip, Download, Eye, EyeOff, ExternalLink, Upload, Save, Maximize2, Edit, Trash } from "lucide-react";
+import { Paperclip, Download, Check, ExternalLink, Upload, Save, Maximize2, Edit, Trash } from "lucide-react";
 import { extractFileIdFromUrl, getDirectLink } from "@/lib/googleDrive.js";
 import ChatHeader from "@/components/chat-header.jsx";
 import ChatInput from "@/components/chat-input.jsx";
-import SmartReplySuggestions from "@/components/smart-reply-suggestions.jsx";
+import dynamic from 'next/dynamic';
+const SmartReplySuggestions = dynamic(() => import("@/components/smart-reply-suggestions.jsx"), {
+  ssr: false,
+  // Keep it lightweight; render nothing until loaded
+  loading: () => null,
+});
 import ImageModal from "@/components/image-modal.jsx";
 import MessageContextMenu from "@/components/message-context-menu.jsx";
 import EditMessageDialog from "@/components/edit-message-dialog.jsx";
@@ -327,7 +332,7 @@ export default function ChatView({
   const chatHistory = React.useMemo(() => {
     return chat.messages
       .map((msg) => {
-        const sender = users.find((u) => u.id === msg.senderId);
+        const sender = users.find((u) => (u.uid || u.id) === msg.senderId);
         return `${sender?.name || "Unknown"}: ${msg.content}`;
       })
       .join("\n");
@@ -351,7 +356,7 @@ export default function ChatView({
               return true;
             })
             .map((message, index) => {
-            const sender = users.find((user) => user.id === message.senderId);
+            const sender = users.find((user) => (user.uid || user.id) === message.senderId);
             const isYou = message.senderId === userId;
             const showAvatar = !isYou && (index === 0 || chat.messages[index - 1].senderId !== message.senderId);
             const isUnread = !isYou && (!message.readBy || !message.readBy.includes(userId));
@@ -418,15 +423,15 @@ export default function ChatView({
                           <FormattedTime timestamp={message.timestamp} />
                         </p>
                         {isYou && !message.isDeleted && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-0.5">
                             {getReadStatus(message) > 0 ? (
-                              <Eye size={12} className="text-blue-500" />
+                              <span className="relative inline-flex items-center">
+                                <Check size={12} className="text-blue-500" />
+                                <Check size={12} className="text-blue-500 -ml-2" />
+                              </span>
                             ) : (
-                              <EyeOff size={12} className="text-foreground/70" />
+                              <Check size={12} className="text-foreground/70" />
                             )}
-                            <span className="text-xs text-foreground/90">
-                              {getReadStatus(message) > 0 ? 'Read' : 'Sent'}
-                            </span>
                           </div>
                         )}
                       </div>

@@ -13,6 +13,9 @@ A modern, real-time messaging application built with Next.js, Firebase, and AI-p
 - **Real-time Messaging**: Instant message delivery using Firebase Firestore
 - **User Authentication**: Secure authentication with Firebase Auth
 - **Direct Messages**: One-on-one conversations between users
+- **Voice & Video Calls**: High-quality voice and video calling between users
+- **Call Management**: Full-featured call interface with mute, video toggle, and speaker controls
+- **Call Notifications**: Incoming call notifications with accept/decline options
 - **Message Management**: Edit and delete messages with "Delete for Me" and "Delete for Everyone" options
 - **Context Menus**: Right-click context menus for message actions
 - **Read Receipts**: Track message read status for better communication
@@ -46,6 +49,11 @@ A modern, real-time messaging application built with Next.js, Firebase, and AI-p
 
 ### 🛠 Advanced Features
 - **Real-time Synchronization**: Live updates across all connected devices
+- **Voice & Video Calling**: Integrated calling system with full call interface
+- **Call State Management**: Minimize/maximize calls while continuing conversations
+- **Call Controls**: Mute microphone, toggle video, speaker phone controls
+- **Call Notifications**: Toast notifications for incoming calls with ringtone-style animations
+- **Call History**: Real-time call status tracking and management
 - **Message Context Menus**: Right-click functionality for message management
 - **Edit Dialog System**: Intuitive message editing with keyboard shortcuts (Enter to save, Esc to cancel)
 - **Delete Confirmation**: Safety dialogs for delete operations
@@ -125,6 +133,14 @@ Visit [http://localhost:9002](http://localhost:9002) to see your application.
 
 ## 🆕 Recent Updates
 
+### Version 2.2.0 - Voice & Video Calling
+- **✅ Voice Calls**: High-quality voice calling between users
+- **✅ Video Calls**: Full video calling with video stream interface
+- **✅ Call Interface**: Complete call UI with minimize/maximize functionality  
+- **✅ Call Controls**: Mute, video toggle, speaker phone, and end call controls
+- **✅ Call Notifications**: Incoming call notifications with accept/decline actions
+- **✅ Call Management**: Real-time call status synchronization via Firebase
+
 ### Version 2.1.0 - Enhanced Message Management
 - **✅ Message Editing**: Full edit functionality with visual indicators and keyboard shortcuts
 - **✅ Message Deletion**: "Delete for Me" and "Delete for Everyone" options with confirmation dialogs
@@ -152,9 +168,11 @@ BreezeChat/
 │   │   └── login/            # Authentication pages
 │   ├── components/            # React components
 │   │   ├── ui/               # shadcn/ui components
-│   │   ├── chat-header.jsx   # Chat header with user info
+│   │   ├── chat-header.jsx   # Chat header with user info and call buttons
 │   │   ├── chat-input.jsx    # Message input component
 │   │   ├── chat-view.jsx     # Main chat interface
+│   │   ├── call-interface.jsx # Voice/video call interface
+│   │   ├── call-notification.jsx # Incoming call notifications
 │   │   ├── image-modal.jsx   # Image viewer modal
 │   │   ├── media-uploader.jsx # File upload interface
 │   │   ├── smart-reply-suggestions.jsx # AI suggestions
@@ -163,6 +181,7 @@ BreezeChat/
 │   │   └── edit-message-dialog.jsx # Message editing dialog
 │   ├── context/              # React contexts
 │   │   ├── auth-context.jsx  # Authentication state
+│   │   ├── call-context.jsx  # Call state management
 │   │   └── theme-context.jsx # Theme management
 │   ├── hooks/                # Custom React hooks
 │   ├── lib/                  # Utility libraries

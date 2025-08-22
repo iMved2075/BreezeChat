@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/context/auth-context.jsx";
 import { ThemeProvider } from "@/context/theme-context.jsx";
+import { CallProvider } from "@/context/call-context.jsx";
 import "./globals.css";
 
 // Increase max listeners in development
@@ -32,8 +33,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            {children}
-            <Toaster />
+            <CallProvider>
+              {children}
+              <Toaster />
+            </CallProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>
